@@ -1,0 +1,12 @@
+{
+  "shift": "day-1",
+  "ticket_ids": ["F04", "F03", "F02", "F01"],
+  "pending": {
+    "ticket_id": "F04",
+    "lane": "A",
+    "segments": [
+      {"id": "head", "samples": [2]},
+      {"id": "tail", "samples": [6]}
+    ]
+  }
+}

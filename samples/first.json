@@ -1,0 +1,10 @@
+{
+  "shift": "day-1",
+  "ticket_id": "F01",
+  "lane": "A",
+  "segments": [
+    {"id": "head", "samples": [-7]},
+    {"id": "tail", "samples": [4]}
+  ],
+  "delivery_order": [2, 1, 0]
+}

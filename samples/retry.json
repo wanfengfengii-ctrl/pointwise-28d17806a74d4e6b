@@ -1,0 +1,21 @@
+{
+  "shift": "day-1",
+  "ticket_id": "F02",
+  "lane": "A",
+  "first": [
+    {"id": "head", "samples": [7]},
+    {"id": "tail", "samples": [9]}
+  ],
+  "retry": [
+    {"id": "head", "samples": [11]},
+    {"id": "tail", "samples": [13]}
+  ],
+  "other": {
+    "ticket_id": "F03",
+    "lane": "B",
+    "segments": [
+      {"id": "head", "samples": [-5]},
+      {"id": "tail", "samples": [3]}
+    ]
+  }
+}
