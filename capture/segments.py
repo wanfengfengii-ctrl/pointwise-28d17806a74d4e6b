@@ -13,6 +13,9 @@ class SegmentEvidence:
     start: int
     stop: int
     reference: int
+    # 双工单共录的首拍出处：共录号与物理布局原段位置。普通录制和独立补拍为空。
+    shared_id: str | None = None
+    source_position: int | None = None
 
 
 class SegmentCoverage:

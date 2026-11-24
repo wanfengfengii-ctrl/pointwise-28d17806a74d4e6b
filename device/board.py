@@ -7,31 +7,49 @@ from device.trace import DeviceTrace, TraceAction, TraceEntry
 
 
 class Board:
+    """板卡录制。尝试（Attempt）与双工单共录号（str）都是录制身份。"""
+
     def __init__(self) -> None:
         self.trace = DeviceTrace()
-        self._descriptors: dict[Attempt, Descriptor] = {}
+        self._descriptors: dict[object, Descriptor] = {}
         self._notifications: dict[int, RecordingEvent] = {}
 
-    def accept(self, attempt: Attempt, spec: RecordingSpec, area: ReceiveArea) -> None:
-        if not isinstance(attempt, Attempt) or not isinstance(spec, RecordingSpec):
-            raise ValueError('板卡指派不含有效尝试或布局')
-        if not isinstance(area, ReceiveArea) or area.lane != attempt.lane:
-            raise ValueError('接收区测道与尝试不同')
-        if self.has_attempt(attempt):
-            raise ValueError('板卡已接受该尝试')
-        self._descriptors[attempt] = Descriptor(attempt, spec, area)
+    @staticmethod
+    def _identity(value: object) -> object:
+        if isinstance(value, Attempt):
+            return value
+        if isinstance(value, str) and value.strip():
+            return value
+        raise ValueError('板卡录制身份须为尝试或非空共录号')
+
+    def accept(self, attempt: Attempt | str, spec: RecordingSpec, area: ReceiveArea,
+               *, lane: str | None = None) -> None:
+        key = self._identity(attempt)
+        if not isinstance(spec, RecordingSpec):
+            raise ValueError('板卡指派不含有效布局')
+        lane = lane if lane is not None else getattr(attempt, 'lane', None)
+        if lane not in ('A', 'B'):
+            raise ValueError('板卡指派缺少有效测道')
+        if not isinstance(area, ReceiveArea) or area.lane != lane:
+            raise ValueError('接收区测道与录制身份不同')
+        if key in self._descriptors:
+            raise ValueError('板卡已接受该录制身份')
+        self._descriptors[key] = Descriptor(attempt, spec, area)
         self.trace.record(TraceAction.ACCEPTED, attempt, area.area_id)
 
-    def has_attempt(self, attempt: Attempt) -> bool:
-        return attempt in self._descriptors
-
-    def _descriptor(self, attempt: Attempt) -> Descriptor:
+    def has_attempt(self, attempt: object) -> bool:
         try:
-            return self._descriptors[attempt]
+            return self._identity(attempt) in self._descriptors
+        except ValueError:
+            return False
+
+    def _descriptor(self, attempt: object) -> Descriptor:
+        try:
+            return self._descriptors[self._identity(attempt)]
         except KeyError as exc:
             raise ValueError('板卡未接受该尝试') from exc
 
-    def state(self, attempt: Attempt) -> DescriptorState:
+    def state(self, attempt: object) -> DescriptorState:
         return self._descriptor(attempt).state
 
     def _notify(self, kind: EventKind, entry: TraceEntry) -> RecordingEvent:
@@ -40,7 +58,7 @@ class Board:
         self._notifications[event.reference] = event
         return event
 
-    def write_segment(self, attempt: Attempt, position: int, samples: Iterable[int]) -> tuple[RecordingEvent, ...]:
+    def write_segment(self, attempt: object, position: int, samples: Iterable[int]) -> tuple[RecordingEvent, ...]:
         descriptor = self._descriptor(attempt)
         if not descriptor.state.can_write:
             raise ValueError('该尝试的设备写入权已解除')
@@ -50,31 +68,31 @@ class Board:
         descriptor.area.write_segment(descriptor.spec, position, samples)
         descriptor.written.add(position)
         start, stop = descriptor.spec.interval(position)
-        entry = self.trace.record(TraceAction.WRITTEN, attempt, descriptor.area.area_id,
+        entry = self.trace.record(TraceAction.WRITTEN, descriptor.attempt, descriptor.area.area_id,
                                   position=position, segment_id=segment.segment_id, start=start, stop=stop)
         written = self._notify(EventKind.SEGMENT_WRITTEN, entry)
         if len(descriptor.written) < len(descriptor.spec.segments):
             return (written,)
         descriptor.state = DescriptorState.COMPLETE
-        finished = self.trace.record(TraceAction.COMPLETED, attempt, descriptor.area.area_id)
+        finished = self.trace.record(TraceAction.COMPLETED, descriptor.attempt, descriptor.area.area_id)
         return written, self._notify(EventKind.COMPLETED, finished)
 
-    def request_stop(self, attempt: Attempt) -> bool:
+    def request_stop(self, attempt: object) -> bool:
         descriptor = self._descriptor(attempt)
         if descriptor.state is not DescriptorState.WRITING:
             return False
         descriptor.state = DescriptorState.STOP_PENDING
-        self.trace.record(TraceAction.STOP_REQUESTED, attempt, descriptor.area.area_id)
+        self.trace.record(TraceAction.STOP_REQUESTED, descriptor.attempt, descriptor.area.area_id)
         return True
 
-    def confirm_stop(self, attempt: Attempt) -> RecordingEvent | None:
+    def confirm_stop(self, attempt: object) -> RecordingEvent | None:
         descriptor = self._descriptor(attempt)
         if not descriptor.state.can_write:
             return None
         if descriptor.state is not DescriptorState.STOP_PENDING:
             raise ValueError('该尝试未收到停止请求')
         descriptor.state = DescriptorState.STOPPED
-        entry = self.trace.record(TraceAction.STOP_CONFIRMED, attempt, descriptor.area.area_id)
+        entry = self.trace.record(TraceAction.STOP_CONFIRMED, descriptor.attempt, descriptor.area.area_id)
         return self._notify(EventKind.STOP_CONFIRMED, entry)
 
     def deliver_event(self, reference: int) -> RecordingEvent:

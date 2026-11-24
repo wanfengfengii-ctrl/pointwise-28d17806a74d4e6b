@@ -1,0 +1,11 @@
+{
+  "shift": "day-shared",
+  "shared_id": "load-41",
+  "lane": "A",
+  "segments": [
+    {"id": "head", "samples": [7, 3]},
+    {"id": "overlap", "samples": [11]},
+    {"id": "tail", "samples": [-17]}
+  ],
+  "windows": {"F05": [0, 2], "F06": [1, 3]}
+}

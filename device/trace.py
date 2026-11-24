@@ -16,7 +16,7 @@ class TraceAction(Enum):
 class TraceEntry:
     reference: int
     action: TraceAction
-    attempt: Attempt
+    attempt: Attempt | str
     area_id: str
     position: int | None = None
     segment_id: str | None = None

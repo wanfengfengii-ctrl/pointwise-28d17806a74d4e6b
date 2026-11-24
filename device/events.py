@@ -13,7 +13,8 @@ class EventKind(Enum):
 @dataclass(frozen=True)
 class RecordingEvent:
     kind: EventKind
-    attempt: Attempt
+    # 普通录制用 Attempt，双工单共录号为共录号字符串；两者都是板卡录制身份。
+    attempt: Attempt | str
     area_id: str
     reference: int
     position: int | None = None

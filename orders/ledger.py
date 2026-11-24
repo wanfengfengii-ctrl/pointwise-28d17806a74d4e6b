@@ -6,6 +6,10 @@ class DuplicateTicket(ValueError):
     pass
 
 
+class DuplicateShared(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class RegistrationEntry:
     sequence: int
@@ -44,6 +48,44 @@ class RegistrationLedger:
         self.connection.execute('''
             CREATE INDEX IF NOT EXISTS registrations_shift_order ON registrations (shift, sequence)
         ''')
+        self.connection.execute('''
+            CREATE TABLE IF NOT EXISTS shared_captures (
+                shared_id TEXT PRIMARY KEY NOT NULL,
+                shift TEXT NOT NULL,
+                lane TEXT NOT NULL CHECK (lane IN ('A', 'B'))
+            )
+        ''')
+
+    def shared_known(self, shared_id: str) -> bool:
+        row = self.connection.execute(
+            'SELECT 1 FROM shared_captures WHERE shared_id = ?', (shared_id,),
+        ).fetchone()
+        return row is not None
+
+    def register_shared(
+        self, shared_id: str, shift: str, lane: str, ticket_ids: tuple[str, ...],
+    ) -> tuple[RegistrationEntry, ...]:
+        entries: list[RegistrationEntry] = []
+        self.connection.execute('BEGIN IMMEDIATE')
+        try:
+            self.connection.execute(
+                'INSERT INTO shared_captures (shared_id, shift, lane) VALUES (?, ?, ?)',
+                (shared_id, shift, lane),
+            )
+            for ticket_id in ticket_ids:
+                cursor = self.connection.execute(
+                    'INSERT INTO registrations (shift, ticket_id, lane) VALUES (?, ?, ?)',
+                    (shift, ticket_id, lane),
+                )
+                entries.append(RegistrationEntry(cursor.lastrowid, shift, ticket_id, lane, False))
+            self.connection.commit()
+        except sqlite3.IntegrityError as exc:
+            self.connection.rollback()
+            raise DuplicateShared(f'共录号或工单号已登记 {shared_id}') from exc
+        except BaseException:
+            self.connection.rollback()
+            raise
+        return tuple(entries)
 
     def register(self, shift: str, ticket_id: str, lane: str) -> RegistrationEntry:
         try:

@@ -90,7 +90,7 @@ class DescriptorState(Enum):
 
 @dataclass
 class Descriptor:
-    attempt: Attempt
+    attempt: Attempt | str
     spec: RecordingSpec
     area: ReceiveArea
     state: DescriptorState = DescriptorState.WRITING
